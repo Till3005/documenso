@@ -13,11 +13,16 @@ const SIGNATURE_FONT_FAMILY_CAVEAT = 'Caveat';
 const SIGNATURE_FONT_FAMILY_NOTO =
   '"Noto Sans", "Noto Sans Chinese", "Noto Sans Japanese", "Noto Sans Korean", sans-serif';
 
-const isASCII = (str: string) => /^\p{ASCII}*$/u.test(str);
+// Caveat covers Latin (including Extended-A/B diacritics) and Cyrillic, plus
+// the marks, punctuation, ASCII digits and spaces names are written with.
+// Scripts it cannot render (CJK, emoji, Arabic, Greek, …) still need the Noto
+// fallback stack - see #3365.
+const isCaveatRenderable = (str: string) =>
+  /^[\p{Script=Latin}\p{Script=Cyrillic}\p{M}\p{P}\p{Zs}\d]*$/u.test(str);
 
 // Deliberately never mix handwriting + sans-serif within one signature.
 export const getSignatureFontFamily = (typedSignatureText: string): string =>
-  isASCII(typedSignatureText) ? SIGNATURE_FONT_FAMILY_CAVEAT : SIGNATURE_FONT_FAMILY_NOTO;
+  isCaveatRenderable(typedSignatureText) ? SIGNATURE_FONT_FAMILY_CAVEAT : SIGNATURE_FONT_FAMILY_NOTO;
 
 export const PDF_SIZE_A4_72PPI = {
   width: 595,
