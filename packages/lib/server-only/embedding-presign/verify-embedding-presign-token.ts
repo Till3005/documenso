@@ -124,6 +124,7 @@ export const verifyEmbeddingPresignToken = async ({ token, scope }: VerifyEmbedd
   return {
     ...apiToken,
     userId,
+    scope: typeof decodedToken.scope === 'string' ? decodedToken.scope : undefined,
     user: {
       id: apiToken.user.id,
       name: apiToken.user.name,

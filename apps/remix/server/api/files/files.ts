@@ -3,6 +3,7 @@ import { APP_DOCUMENT_UPLOAD_SIZE_LIMIT } from '@documenso/lib/constants/app';
 import { AppError } from '@documenso/lib/errors/app-error';
 import { verifyEmbeddingPresignToken } from '@documenso/lib/server-only/embedding-presign/verify-embedding-presign-token';
 import { putNormalizedPdfFileServerSide } from '@documenso/lib/universal/upload/put-file.server';
+import { isEnvelopePresignTokenScopeValid } from '@documenso/lib/utils/envelope';
 import { prisma } from '@documenso/prisma';
 import { sValidator } from '@hono/standard-validator';
 import type { Prisma } from '@prisma/client';
@@ -73,13 +74,15 @@ export const filesRoute = new Hono<HonoEnv>()
       const session = await getOptionalNonEmbedSession(c);
 
       let userId = session.user?.id;
+      let presignTokenScope: string | undefined;
 
       if (token) {
-        const presignToken = await verifyEmbeddingPresignToken({
+        const verifiedToken = await verifyEmbeddingPresignToken({
           token,
         }).catch(() => undefined);
 
-        userId = presignToken?.userId;
+        userId = verifiedToken?.userId;
+        presignTokenScope = verifiedToken?.scope;
       }
 
       if (!userId) {
@@ -110,6 +113,10 @@ export const filesRoute = new Hono<HonoEnv>()
 
       if (!envelopeItem) {
         return c.json({ error: 'Envelope item not found' }, 404);
+      }
+
+      if (!isEnvelopePresignTokenScopeValid(presignTokenScope, envelope)) {
+        return c.json({ error: 'Forbidden' }, 403);
       }
 
       const hasAccess = await checkEnvelopeFileAccess({

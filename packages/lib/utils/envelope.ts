@@ -232,6 +232,48 @@ export const mapSecondaryIdToTemplateId = (secondaryId: string) => {
   return parseInt(parsed.data.split('_')[1]);
 };
 
+type EnvelopePresignScopeTarget = {
+  id: string;
+  secondaryId: string;
+};
+
+/**
+ * Scopes that authorise presign token access to an envelope's files.
+ *
+ * V2 embed tokens are scoped to the envelope id; V1 embed tokens are scoped to
+ * the legacy document/template id held in `secondaryId`. Newer envelopes have
+ * a cuid `secondaryId` and are only reachable through the envelope scope.
+ */
+const getEnvelopePresignTokenScopes = ({ id, secondaryId }: EnvelopePresignScopeTarget): string[] => {
+  const scopes = [`envelopeId:${id}`];
+
+  if (ZDocumentIdSchema.safeParse(secondaryId).success) {
+    scopes.push(`documentId:${mapSecondaryIdToDocumentId(secondaryId)}`);
+  } else if (ZTemplateIdSchema.safeParse(secondaryId).success) {
+    scopes.push(`templateId:${mapSecondaryIdToTemplateId(secondaryId)}`);
+  }
+
+  return scopes;
+};
+
+/**
+ * Whether a presign token scope authorises file access to the given envelope.
+ *
+ * Tokens without a scope are team-level credentials and always pass; scoped
+ * tokens must name this envelope or its legacy document/template id, so a
+ * token minted for one document cannot read another's files.
+ */
+export const isEnvelopePresignTokenScopeValid = (
+  scope: string | undefined,
+  envelope: EnvelopePresignScopeTarget,
+): boolean => {
+  if (!scope) {
+    return true;
+  }
+
+  return getEnvelopePresignTokenScopes(envelope).includes(scope);
+};
+
 export type EnvelopeItemPermissions = {
   canTitleBeChanged: boolean;
   canFileBeChanged: boolean;

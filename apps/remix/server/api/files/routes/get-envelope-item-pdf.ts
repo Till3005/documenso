@@ -3,6 +3,7 @@ import { verifyEmbeddingPresignToken } from '@documenso/lib/server-only/embeddin
 import type { DocumentDataVersion } from '@documenso/lib/types/document';
 import { sha256 } from '@documenso/lib/universal/crypto';
 import { getFileServerSide } from '@documenso/lib/universal/upload/get-file.server';
+import { isEnvelopePresignTokenScopeValid } from '@documenso/lib/utils/envelope';
 import { prisma } from '@documenso/prisma';
 import { sValidator } from '@hono/standard-validator';
 import type { DocumentData, EnvelopeItem } from '@prisma/client';
@@ -40,6 +41,7 @@ route.get(
     const session = await getOptionalNonEmbedSession(c);
 
     let userId = session.user?.id;
+    let presignTokenScope: string | undefined;
 
     // Check presignToken if provided
     if (presignToken) {
@@ -48,6 +50,7 @@ route.get(
       }).catch(() => undefined);
 
       userId = verifiedToken?.userId;
+      presignTokenScope = verifiedToken?.scope;
     }
 
     if (!userId) {
@@ -66,6 +69,7 @@ route.get(
         envelope: {
           select: {
             id: true,
+            secondaryId: true,
             type: true,
             teamId: true,
             templateType: true,
@@ -75,6 +79,10 @@ route.get(
     });
 
     if (!envelopeItem) {
+      return c.json({ error: 'Not found' }, 404);
+    }
+
+    if (!isEnvelopePresignTokenScopeValid(presignTokenScope, envelopeItem.envelope)) {
       return c.json({ error: 'Not found' }, 404);
     }
 

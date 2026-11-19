@@ -3,6 +3,7 @@ import { verifyEmbeddingPresignToken } from '@documenso/lib/server-only/embeddin
 import { DataContentType } from '@documenso/lib/types/data-content-meta';
 import { sha256 } from '@documenso/lib/universal/crypto';
 import { getFileServerSide } from '@documenso/lib/universal/upload/get-file.server';
+import { isEnvelopePresignTokenScopeValid } from '@documenso/lib/utils/envelope';
 import { prisma } from '@documenso/prisma';
 import { sValidator } from '@hono/standard-validator';
 import type { DataContent } from '@prisma/client';
@@ -35,6 +36,7 @@ route.get(
     const session = await getOptionalNonEmbedSession(c);
 
     let userId = session.user?.id;
+    let presignTokenScope: string | undefined;
 
     if (presignToken) {
       const verifiedToken = await verifyEmbeddingPresignToken({
@@ -42,6 +44,7 @@ route.get(
       }).catch(() => undefined);
 
       userId = verifiedToken?.userId;
+      presignTokenScope = verifiedToken?.scope;
     }
 
     if (!userId) {
@@ -57,6 +60,8 @@ route.get(
         dataContent: true,
         envelope: {
           select: {
+            id: true,
+            secondaryId: true,
             teamId: true,
             type: true,
             templateType: true,
@@ -70,6 +75,10 @@ route.get(
     }
 
     const { dataContent, envelope } = envelopeContent;
+
+    if (!isEnvelopePresignTokenScopeValid(presignTokenScope, envelope)) {
+      return c.json({ error: 'Not found' }, 404);
+    }
 
     const hasAccess = await checkEnvelopeFileAccess({
       userId,
